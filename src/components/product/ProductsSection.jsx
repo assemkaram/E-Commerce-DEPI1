@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { useSearchParams } from "react-router";
+import { getProducts } from "../../services/productsService";
 import ProductCard from "./ProductCard";
 import Spinner from "../ui/Spinner";
 
@@ -71,29 +72,56 @@ const productCategories = [
 function ProductsSection({ onAddToCart, search = "" }) {
   // L1 => States & Global Data (Data)
   const [products, setProducts] = useState([]);
-  const [category, setCategory] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const category = searchParams.get("category") || "";
+  const sort = searchParams.get("sort") || "";
   const [isLoading, setIsLoading] = useState(true);
   // L2 => API Call (Effect)
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProducts = async () => {
-      const endpoint = category
-        ? `https://dummyjson.com/products/category/${category}?limit=0`
-        : "https://dummyjson.com/products?limit=0";
-      const response = await axios.get(endpoint);
-      setProducts(response.data.products);
-      setIsLoading(false);
+      try {
+        const data = await getProducts(category, controller.signal);
+        setProducts(data);
+        setIsLoading(false);
+      } catch (error) {
+        if (error.code === "ERR_CANCELED") return;
+      }
     };
 
     fetchProducts();
+    return () => controller.abort();
   }, [category]);
   // L3 => Handler
-  const categoryHandler = (slug) => {
-    setIsLoading(true);
-    setCategory(slug);
+  const updateParam = (key, value) => {
+    // Create Copy Version Params Object
+    const nextParams = new URLSearchParams(searchParams);
+    // If User Click Slug
+    if (value) {
+      nextParams.set(key, value);
+    } else {
+      nextParams.delete(key);
+    }
+    // Update Original Object Params
+    setSearchParams(nextParams);
   };
+  const categoryHandler = (slug) => {
+    if (slug === category) return;
+    setIsLoading(true);
+    updateParam("category", slug);
+  };
+
+  const sortHandler = (event) => {
+    updateParam("sort", event.target.value);
+  };
+
   const filterProducts = products.filter((product) =>
     product.title.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const sortedProducts = [...filterProducts];
+  if (sort === "low") sortedProducts.sort((a, b) => a.price - b.price);
+  if (sort === "high") sortedProducts.sort((a, b) => b.price - a.price);
 
   // L4 => View
   return (
@@ -111,11 +139,13 @@ function ProductsSection({ onAddToCart, search = "" }) {
           </label>
           <select
             id="sort-order"
+            value={sort}
+            onChange={sortHandler}
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800"
           >
-            <option>Sort by order</option>
-            <option>Price: Low to High</option>
-            <option>Price: High to Low</option>
+            <option value="">Sort by order</option>
+            <option value="low">Price: Low to High</option>
+            <option value="high">Price: High to Low</option>
           </select>
         </div>
       </div>
@@ -302,7 +332,7 @@ function ProductsSection({ onAddToCart, search = "" }) {
             <Spinner />
           ) : (
             <div className="products-grid grid flex-1 grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {filterProducts.map((product) => (
+              {sortedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   variant="top"

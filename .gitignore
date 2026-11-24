@@ -15,6 +15,7 @@ dist-ssr
 /Ecommerce.pdf
 /MASTER_SESSION_BUNDLE.md
 /lecture-test
+.env
 
 
 # Editor directories and files
